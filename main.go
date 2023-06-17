@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"bufio"
+	"strings"
 )
 
 type Request struct {
@@ -25,6 +27,7 @@ const (
 	ContentTypeHeader        = "Content-Type"
 	ContentTypeTextPlain     = "text/plain"
 	StatusNotFound           = "404 Not Found"
+	HttpVersion              = "HTTP/1.0"
 )
 
 func main() {
@@ -45,10 +48,69 @@ func main() {
 	} 
 }
 
-func handleRequest(conn net.Conn) {
-	
+func writeResponse(conn net.Conn, response Response) {
+	responseString := fmt.Sprintf("%s %s\r\n", HttpVersion, response.Status)
+
+	for key, value := range response.Headers {
+		responseString += fmt.Sprintf("%s: %s\r\n", key, value)
+	}
+
+	responseString += "\r\n" + response.Body
+
+	_, err := conn.Write([]byte(responseString))
+	if err != nil {
+		log.Println("Error writing response:", err)
+	}
 }
 
+func parseRequest(requestText string) *Request {
+	lines := strings.Split(requestText, "\n")
+
+	requestLine := strings.Split(lines[0], " ")
+	method := requestLine[0]
+	path := requestLine[1]
+
+	headers := make(map[string]string)
+	for i := 1; i < len(lines); i++ {
+		line := lines[i]
+		if line == "" {
+			break
+		}
+		header := strings.Split(line, ": ")
+		key := header[0]
+		value := header[1]
+		headers[key] = value
+	}
+
+	body := ""
+	if len(lines) > 0 {
+		body = lines[len(lines)-1]
+	}
+
+	return &Request{
+		Method:  method,
+		Path:    path,
+		Headers: headers,
+		Body:    body,
+	}
+}
+
+func handleRequest(conn net.Conn) {
+	defer conn.Close()
+
+	reader := bufio.NewReader(conn)
+	requestText, err := reader.ReadString('\n')
+	if err != nil {
+		log.Println("Error reading request:", err)
+		return
+	}
+
+	request := parseRequest(requestText)
+
+	response := handleGetRequest(request)
+
+	writeResponse(conn, response)
+}
 
 func handleGetRequest(request *Request) Response {
 	
@@ -58,16 +120,16 @@ func handleGetRequest(request *Request) Response {
 			Headers: map[string]string{
 				ContentTypeHeader: ContentTypeTextPlain,
 			},
-			Body: "Hello, GET request!",
+			Body: "Resposta de uma requisição GET!",
 		}
 		return response
-	} else if request.Path == "/clients" {
+	} else if request.Path == "/clientes" {
 		response := Response{
 			Status: StatusOK,
 			Headers: map[string]string{
 				ContentTypeHeader: ContentTypeTextPlain,
 			},
-			Body: "list clients",
+			Body: "Lista de clientes",
 		}
 		return response
 	} else {
