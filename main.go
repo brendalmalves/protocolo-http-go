@@ -44,7 +44,7 @@ func main() {
 			log.Println(err)
 			continue
 		}
-		handleRequest(conn)
+		go handleRequest(conn)
 	} 
 }
 
@@ -59,7 +59,7 @@ func writeResponse(conn net.Conn, response Response) {
 
 	_, err := conn.Write([]byte(responseString))
 	if err != nil {
-		log.Println("Error writing response:", err)
+		log.Println(err)
 	}
 }
 
@@ -101,46 +101,78 @@ func handleRequest(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	requestText, err := reader.ReadString('\n')
 	if err != nil {
-		log.Println("Error reading request:", err)
+		log.Println(err)
 		return
 	}
 
 	request := parseRequest(requestText)
 
-	response := handleGetRequest(request)
-
+	var response Response
+	if request.Method == "GET" {
+		response = handleGetRequest(request)
+	} else if request.Method == "POST" {
+		response = handlePostRequest(request)
+	} else {
+		response = Response{
+			Status: StatusMethodNotAllowed,
+			Headers: map[string]string{
+				ContentTypeHeader: ContentTypeTextPlain,
+			},
+			Body: StatusMethodNotAllowed,
+		}
+	}
 	writeResponse(conn, response)
 }
 
 func handleGetRequest(request *Request) Response {
-	
+	var response Response
 	if request.Path == "/" {
-		response := Response{
+		response = Response{
 			Status: StatusOK,
 			Headers: map[string]string{
 				ContentTypeHeader: ContentTypeTextPlain,
 			},
 			Body: "Resposta de uma requisição GET!",
 		}
-		return response
 	} else if request.Path == "/clientes" {
-		response := Response{
+		response = Response{
 			Status: StatusOK,
 			Headers: map[string]string{
 				ContentTypeHeader: ContentTypeTextPlain,
 			},
 			Body: "Lista de clientes",
 		}
-		return response
 	} else {
-		response := Response{
+		response = Response{
 			Status: StatusNotFound,
 			Headers: map[string]string{
 				ContentTypeHeader: ContentTypeTextPlain,
 			},
-			Body: "404 Not Found",
+			Body: StatusNotFound,
 		}
-		return response
 	}
+	return response
+}
+
+func handlePostRequest(request *Request) Response {
+	var response Response
+	if request.Path == "/clientes" {
+		response = Response{
+			Status: StatusOK,
+			Headers: map[string]string{
+				ContentTypeHeader: ContentTypeTextPlain,
+			},
+			Body: "Cliente criado com sucesso!",
+		}
+	} else {
+		response = Response{
+			Status: StatusNotFound,
+			Headers: map[string]string{
+				ContentTypeHeader: ContentTypeTextPlain,
+			},
+			Body: StatusNotFound,
+		}
+	}
+	return response
 }
 
