@@ -21,6 +21,8 @@ type Response struct {
 	Body    string
 }
 
+type RouteHandler func(request *Request) Response
+
 const (
 	StatusOK                  = "200 OK"
 	StatusMethodNotAllowed   = "405 Method Not Allowed"
@@ -29,6 +31,14 @@ const (
 	StatusNotFound           = "404 Not Found"
 	HttpVersion              = "HTTP/1.0"
 )
+
+var routes map[string]RouteHandler
+
+func init() {
+	routes = make(map[string]RouteHandler)
+	initRoutes()
+}
+
 
 func main() {
 	ln, err := net.Listen("tcp", ":8000")
@@ -107,72 +117,54 @@ func handleRequest(conn net.Conn) {
 
 	request := parseRequest(requestText)
 
-	var response Response
-	if request.Method == "GET" {
-		response = handleGetRequest(request)
-	} else if request.Method == "POST" {
-		response = handlePostRequest(request)
+	handler, ok := routes[request.Path+"_"+request.Method]
+	if ok {
+		response := handler(request)
+		writeResponse(conn, response)
 	} else {
-		response = Response{
-			Status: StatusMethodNotAllowed,
-			Headers: map[string]string{
-				ContentTypeHeader: ContentTypeTextPlain,
-			},
-			Body: StatusMethodNotAllowed,
-		}
-	}
-	writeResponse(conn, response)
-}
-
-func handleGetRequest(request *Request) Response {
-	var response Response
-	if request.Path == "/" {
-		response = Response{
-			Status: StatusOK,
-			Headers: map[string]string{
-				ContentTypeHeader: ContentTypeTextPlain,
-			},
-			Body: "Resposta de uma requisição GET!",
-		}
-	} else if request.Path == "/clientes" {
-		response = Response{
-			Status: StatusOK,
-			Headers: map[string]string{
-				ContentTypeHeader: ContentTypeTextPlain,
-			},
-			Body: "Lista de clientes",
-		}
-	} else {
-		response = Response{
+		response := Response{
 			Status: StatusNotFound,
 			Headers: map[string]string{
 				ContentTypeHeader: ContentTypeTextPlain,
 			},
 			Body: StatusNotFound,
 		}
+		writeResponse(conn, response)
 	}
-	return response
 }
 
-func handlePostRequest(request *Request) Response {
-	var response Response
-	if request.Path == "/clientes" {
-		response = Response{
+func addRoute(path string, method string, handler RouteHandler) {
+	routes[path+"_"+method] = handler
+}
+
+func initRoutes() {
+	addRoute("/", "GET", func(request *Request) Response {
+		return Response{
 			Status: StatusOK,
 			Headers: map[string]string{
 				ContentTypeHeader: ContentTypeTextPlain,
 			},
-			Body: "Cliente criado com sucesso!",
+			Body: "Resposta de uma requisição GET!\n",
 		}
-	} else {
-		response = Response{
-			Status: StatusNotFound,
+	})
+
+	addRoute("/clientes", "GET", func(request *Request) Response {
+		return Response{
+			Status: StatusOK,
 			Headers: map[string]string{
 				ContentTypeHeader: ContentTypeTextPlain,
 			},
-			Body: StatusNotFound,
+			Body: "Lista de clientes\n",
 		}
-	}
-	return response
-}
+	})
 
+	addRoute("/clientes", "POST", func(request *Request) Response {
+		return Response{
+			Status: StatusOK,
+			Headers: map[string]string{
+				ContentTypeHeader: ContentTypeTextPlain,
+			},
+			Body: "Cliente criado com sucesso!\n",
+		}
+	})
+}
